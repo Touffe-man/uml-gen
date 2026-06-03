@@ -5,6 +5,7 @@ function setMode(mode) {
     currentMode = mode;
     document.getElementById('btn-class').classList.toggle('active', mode === 'class');
     document.getElementById('btn-state').classList.toggle('active', mode === 'state');
+    document.getElementById('btn-deps').classList.toggle('active', mode === 'deps');
 }
 
 // ── MERMAID ──────────────────────────────────────────────
@@ -141,6 +142,13 @@ async function generate() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code })
             });
+        } else if (currentMode === 'deps') {
+            const filename = document.getElementById('file-name').textContent || 'file.cpp';
+            res = await fetch('/analyze-deps', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, filename })
+            });
         } else {
             res = await fetch('/analyze', {
                 method: 'POST',
@@ -161,10 +169,12 @@ async function generate() {
         const { svg } = await mermaid.render('mermaid-diagram-' + Date.now(), data.mermaid);
         wrap.innerHTML = svg;
 
-        const count = (data.classes || data.states || []).length;
+        const count = (data.classes || data.states || data.files || []).length;
         document.getElementById('class-count').textContent =
             currentMode === 'state'
                 ? count + ' état' + (count > 1 ? 's' : '')
+                : currentMode === 'deps'
+                ? 'dépendances'
                 : count + ' classe' + (count > 1 ? 's' : '');
 
         status.textContent = 'ok';

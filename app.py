@@ -17,86 +17,230 @@ parser = Parser(CPP_LANGUAGE)
 def get_text(source, node):
     return source[node.start_byte:node.end_byte].decode("utf-8")
 
-def parse_class(source, node, namespace=None):
-    result = {"name": "", "attributes": [], "methods": [], "parents": [], "namespace": namespace}
+def get_full_type(source, node):
+    """Extrait un type complet incluant templates, pointeurs, références."""
+    txt = get_text(source, node).strip()
+    # Nettoie les espaces multiples
+    txt = re.sub(r'\s+', ' ', txt)
+    return txt
+
+def parse_params(source, params_node):
+    """Extrait les paramètres d'une fonction : [(type, name), ...]"""
+    params = []
+    if params_node is None:
+        return params
+    
+    for child in params_node.children:
+        if child.type == "parameter_declaration":
+            # Récupère tout le texte du paramètre et on le nettoie
+            full = get_text(source, child).strip()
+            full = re.sub(r'\s+', ' ', full)
+            # Sépare type et nom : dernier token = nom si pas un type pur
+            parts = full.rsplit(' ', 1)
+            if len(parts) == 2:
+                ptype = parts[0].strip().lstrip('(').rstrip(',')
+                pname = parts[1].strip().rstrip(')').rstrip(',')
+                # Si le nom ressemble à un identifiant valide
+                if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', pname):
+                    params.append((ptype, pname))
+                else:
+                    params.append((full, ''))
+            else:
+                params.append((full, ''))
+    return params
+
+def parse_class(source, node, namespace=None, is_struct=False):
+    result = {
+        "name": "",
+        "attributes": [],
+        "methods": [],
+        "parents": [],
+        "namespace": namespace,
+        "is_struct": is_struct
+    }
 
     for child in node.children:
         if child.type == "type_identifier":
             result["name"] = get_text(source, child)
+
         elif child.type == "base_class_clause":
             for base in child.children:
-                if base.type == "type_identifier":
+                if base.type in ("type_identifier", "qualified_identifier"):
                     result["parents"].append(get_text(source, base))
+
         elif child.type == "field_declaration_list":
-            current_access = "private"
+            # struct = public par défaut, class = private par défaut
+            current_access = "public" if is_struct else "private"
+
             for member in child.children:
                 if member.type == "access_specifier":
                     current_access = get_text(source, member).replace(":", "").strip()
+
                 elif member.type == "field_declaration":
-                    has_func = any(c.type == "function_declarator" for c in member.children)
-                    type_node = next((c for c in member.children if c.type in (
-                        "primitive_type", "type_identifier", "qualified_identifier"
-                    )), None)
+                    _parse_field(source, member, current_access, result)
 
-                    if not type_node:
-                        for c in member.children:
-                            if c.type == "pointer_declarator":
-                                type_node = next((x for x in member.children if x.type in (
-                                    "primitive_type", "type_identifier", "qualified_identifier"
-                                )), None)
-                                break
-
-                    name_node = next((c for c in member.children if c.type == "field_identifier"), None)
-                    if not name_node:
-                        for c in member.children:
-                            if c.type == "function_declarator":
-                                name_node = next((x for x in c.children if x.type == "field_identifier"), None)
-                            elif c.type == "pointer_declarator":
-                                name_node = next((x for x in c.children if x.type == "field_identifier"), None)
-                    if not name_node:
-                        for c in member.children:
-                            if c.type == "function_declarator":
-                                name_node = next((x for x in c.children if x.type == "field_identifier"), None)
-                    type_str = get_text(source, type_node) if type_node else "?"
-                    name_str = get_text(source, name_node) if name_node else "?"
-                    visibility = "+" if current_access == "public" else ("-" if current_access == "private" else "#")
-                    if has_func:
-                        result["methods"].append({"name": name_str, "return_type": type_str, "visibility": visibility})
-                    else:
-                        result["attributes"].append({"name": name_str, "type": type_str, "visibility": visibility})
+                elif member.type in ("function_definition",):
+                    _parse_inline_method(source, member, current_access, result)
 
     return result
 
-def to_mermaid(classes):
+def _parse_field(source, member, current_access, result):
+    """Parse un field_declaration (attribut ou méthode déclarée)."""
+    visibility = "+" if current_access == "public" else ("-" if current_access == "private" else "#")
+
+    # Détecte si c'est une méthode (contient function_declarator)
+    func_decl = next((c for c in member.children if c.type == "function_declarator"), None)
+    
+    # Cherche le type — on prend tout sauf le declarator
+    type_parts = []
+    for c in member.children:
+        if c.type in ("primitive_type", "type_identifier", "qualified_identifier",
+                      "template_type", "pointer_type", "reference_declarator",
+                      "type_qualifier", "storage_class_specifier"):
+            type_parts.append(get_text(source, c).strip())
+        elif c.type == "scoped_type_identifier":
+            type_parts.append(get_text(source, c).strip())
+    
+    type_str = ' '.join(type_parts).strip() or "?"
+
+    if func_decl:
+        # C'est une méthode
+        name_node = next((c for c in func_decl.children if c.type in ("field_identifier", "identifier")), None)
+        params_node = next((c for c in func_decl.children if c.type == "parameter_list"), None)
+        name_str = get_text(source, name_node) if name_node else "?"
+        params = parse_params(source, params_node)
+        param_str = ", ".join(f"{t} {n}".strip() for t, n in params)
+        result["methods"].append({
+            "name": name_str,
+            "return_type": type_str,
+            "params": param_str,
+            "visibility": visibility
+        })
+    else:
+        # C'est un attribut — cherche le nom
+        name_node = None
+        for c in member.children:
+            if c.type == "field_identifier":
+                name_node = c
+                break
+            elif c.type == "pointer_declarator":
+                name_node = next((x for x in c.children if x.type == "field_identifier"), None)
+                if name_node:
+                    type_str = type_str + "*"
+                    break
+            elif c.type == "reference_declarator":
+                name_node = next((x for x in c.children if x.type == "field_identifier"), None)
+                if name_node:
+                    type_str = type_str + "&"
+                    break
+            elif c.type == "array_declarator":
+                name_node = next((x for x in c.children if x.type == "field_identifier"), None)
+                if name_node:
+                    break
+
+        name_str = get_text(source, name_node) if name_node else "?"
+        result["attributes"].append({
+            "name": name_str,
+            "type": type_str,
+            "visibility": visibility
+        })
+
+def _parse_inline_method(source, node, current_access, result):
+    """Parse une méthode définie inline dans la classe."""
+    visibility = "+" if current_access == "public" else ("-" if current_access == "private" else "#")
+    
+    # Cherche le type de retour
+    type_parts = []
+    func_decl = None
+    for c in node.children:
+        if c.type == "function_declarator":
+            func_decl = c
+            break
+        elif c.type in ("primitive_type", "type_identifier", "qualified_identifier", "template_type"):
+            type_parts.append(get_text(source, c).strip())
+    
+    type_str = ' '.join(type_parts).strip() or "void"
+    
+    if func_decl:
+        name_node = next((c for c in func_decl.children if c.type in ("field_identifier", "identifier")), None)
+        params_node = next((c for c in func_decl.children if c.type == "parameter_list"), None)
+        name_str = get_text(source, name_node) if name_node else "?"
+        params = parse_params(source, params_node)
+        param_str = ", ".join(f"{t} {n}".strip() for t, n in params)
+        result["methods"].append({
+            "name": name_str,
+            "return_type": type_str,
+            "params": param_str,
+            "visibility": visibility
+        })
+
+def parse_enum(source, node, namespace=None):
+    """Parse un enum class/struct."""
+    result = {"name": "", "values": [], "namespace": namespace}
+    for child in node.children:
+        if child.type == "type_identifier":
+            result["name"] = get_text(source, child)
+        elif child.type == "enumerator_list":
+            for item in child.children:
+                if item.type == "enumerator":
+                    val_node = next((c for c in item.children if c.type == "identifier"), None)
+                    if val_node:
+                        result["values"].append(get_text(source, val_node))
+    return result
+
+def to_mermaid(classes, enums=None):
     lines = ["classDiagram"]
     class_names = {c["name"] for c in classes}
     full_names = {}
     relations = []
 
+    enums = enums or []
+
     for c in classes:
         full = f'{c["namespace"]}_{c["name"]}' if c["namespace"] else c["name"]
         full_names[c["name"]] = full
 
+    # Classes et structs
     for c in classes:
         full = full_names[c["name"]]
         display = f'{c["namespace"]}::{c["name"]}' if c["namespace"] else c["name"]
         lines.append(f'    class {full} ["{display}"] {{')
+        if c.get("is_struct"):
+            lines.append(f'        <<struct>>')
         for attr in c["attributes"]:
             v = attr.get("visibility", "+")
-            lines.append(f'        {v}{attr["type"]} {attr["name"]}')
+            # Échappe les caractères spéciaux Mermaid dans le type
+            t = attr["type"].replace("<", "~").replace(">", "~")
+            lines.append(f'        {v}{t} {attr["name"]}')
         for method in c["methods"]:
             v = method.get("visibility", "+")
-            lines.append(f'        {v}{method["name"]}() {method["return_type"]}')
+            t = method["return_type"].replace("<", "~").replace(">", "~")
+            params = method.get("params", "")
+            params = params.replace("<", "~").replace(">", "~")
+            lines.append(f'        {v}{method["name"]}({params}) {t}')
         lines.append("    }")
 
+    # Enums
+    for e in enums:
+        full = f'{e["namespace"]}_{e["name"]}' if e["namespace"] else e["name"]
+        display = f'{e["namespace"]}::{e["name"]}' if e["namespace"] else e["name"]
+        lines.append(f'    class {full} ["{display}"] {{')
+        lines.append(f'        <<enumeration>>')
+        for v in e["values"]:
+            lines.append(f'        {v}')
+        lines.append("    }")
+
+    # Relations
     for c in classes:
         full = full_names[c["name"]]
         for attr in c["attributes"]:
-            attr_type = attr["type"].split("::")[-1]
+            # Extrait le type de base (sans *, &, templates)
+            attr_type = re.sub(r'[*&]', '', attr["type"]).strip()
+            attr_type = attr_type.split("::")[-1].split("<")[0].strip()
             if attr_type in class_names:
                 relations.append(f'    {full} --> {full_names[attr_type]}')
         for parent in c["parents"]:
-            parent_base = parent.split("::")[-1]
+            parent_base = parent.split("::")[-1].split("<")[0].strip()
             if parent_base in full_names:
                 relations.append(f'    {full} --|> {full_names[parent_base]}')
 
@@ -105,7 +249,8 @@ def to_mermaid(classes):
 
 def extract_classes(source, tree):
     classes = []
-    
+    enums = []
+
     def walk(node, namespace=None):
         if node.type == "namespace_definition":
             ns_name = None
@@ -116,14 +261,25 @@ def extract_classes(source, tree):
                 if child.type == "declaration_list":
                     for sub in child.children:
                         walk(sub, namespace=ns_name)
+
         elif node.type == "class_specifier":
-            classes.append(parse_class(source, node, namespace=namespace))
+            classes.append(parse_class(source, node, namespace=namespace, is_struct=False))
+
+        elif node.type == "struct_specifier":
+            classes.append(parse_class(source, node, namespace=namespace, is_struct=True))
+
+        elif node.type == "enum_specifier":
+            # Seulement enum class/struct (pas les enums C basiques sans nom)
+            e = parse_enum(source, node, namespace=namespace)
+            if e["name"]:
+                enums.append(e)
+
         else:
             for child in node.children:
                 walk(child, namespace=namespace)
-    
+
     walk(tree.root_node)
-    return classes
+    return classes, enums
 
 def parse_statechar(source, tree):
     states = set()
@@ -172,6 +328,37 @@ def to_statemermaid(states, transitions):
         lines.append(f"    {src} --> {dst}")
     return "\n".join(lines)
 
+def extract_includes(source_text, filename):
+    """Extrait les #include d'un fichier source."""
+    includes = []
+    for match in re.finditer(r'#include\s*["<]([^">]+)[">]', source_text):
+        inc = match.group(1)
+        # Garde seulement les includes locaux (pas <Arduino.h>, <vector>...)
+        if not inc.startswith('/') and '.' in inc:
+            includes.append(os.path.basename(inc))
+    return includes
+
+def to_dependency_mermaid(dep_graph):
+    """Génère un diagramme de dépendances Mermaid."""
+    lines = ["graph TD"]
+    # Noeuds : nom de fichier sans extension comme identifiant
+    def node_id(name):
+        return re.sub(r'[^a-zA-Z0-9_]', '_', name.replace('.', '_'))
+
+    added = set()
+    for src, targets in dep_graph.items():
+        sid = node_id(src)
+        if sid not in added:
+            lines.append(f'    {sid}["{src}"]')
+            added.add(sid)
+        for tgt in targets:
+            tid = node_id(tgt)
+            if tid not in added:
+                lines.append(f'    {tid}["{tgt}"]')
+                added.add(tid)
+            lines.append(f'    {sid} --> {tid}')
+
+    return "\n".join(lines)
 
 # -------------------- ROUTES --------------------
 @app.route("/analyze", methods=["POST"])
@@ -183,11 +370,11 @@ def analyze():
     source = data["code"].encode("utf-8")
     tree = parser.parse(source)
     
-    classes = extract_classes(source, tree)
+    classes, enums = extract_classes(source, tree)
     if not classes:
         return jsonify({"error": "Aucune classe trouvée dans ce fichier"}), 404
 
-    return jsonify({"mermaid": to_mermaid(classes), "classes": classes})
+    return jsonify({"mermaid": to_mermaid(classes, enums), "classes": classes})
 
 @app.route("/analyze-zip", methods=["POST"])
 def analyze_zip():
@@ -199,6 +386,7 @@ def analyze_zip():
         return jsonify({"error": "Fichier .zip attendu"}), 400
 
     all_classes = []
+    all_enums = []
 
     with zipfile.ZipFile(io.BytesIO(f.read())) as z:
         for name in z.namelist():
@@ -206,13 +394,15 @@ def analyze_zip():
                 with z.open(name) as code_file:
                     source = code_file.read()
                     tree = parser.parse(source)
-                    all_classes.extend(extract_classes(source, tree))
+                    c, e = extract_classes(source, tree)
+                    all_classes.extend(c)
+                    all_enums.extend(e)
 
     if not all_classes:
         return jsonify({"error": "Aucune classe trouvée dans le zip"}), 404
 
     return jsonify({
-        "mermaid": to_mermaid(all_classes),
+        "mermaid": to_mermaid(all_classes, all_enums),
         "classes": all_classes
     })
 
@@ -221,7 +411,7 @@ def analyze_state():
     data = request.get_json()
     if not data or "code" not in data:
         return jsonify({"error": "Champ 'code' manquant"}), 400
-
+    
     source = data["code"].encode("utf-8")
     tree = parser.parse(source)
     states, transitions = parse_statechar(source, tree)
@@ -272,6 +462,7 @@ def analyze_github():
     cpp_files = cpp_files[:30]
 
     all_classes = []
+    all_enums = []
     for f in cpp_files:
         raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/HEAD/{f['path']}"
         resp = http_requests.get(raw_url, headers=headers, timeout=10)
@@ -279,7 +470,9 @@ def analyze_github():
             continue
         source = resp.content
         parsed_tree = parser.parse(source)
-        all_classes.extend(extract_classes(source, parsed_tree))
+        c, e = extract_classes(source, parsed_tree)
+        all_classes.extend(c)
+        all_enums.extend(e)
 
     if not all_classes:
         return jsonify({"error": "Aucune classe trouvée dans ce repo"}), 404
@@ -296,7 +489,7 @@ def analyze_github():
             readme_content = r.text[:3000]  # limite pour pas exploser le prompt
 
     return jsonify({
-        "mermaid": to_mermaid(all_classes),
+        "mermaid": to_mermaid(all_classes, all_enums),
         "classes": all_classes,
         "files_analyzed": len(cpp_files),
         "readme": readme_content
@@ -316,7 +509,7 @@ def explain():
 
     prompt = f"""Tu es un expert en architecture logicielle C++ et systèmes embarqués.
     {readme_section}
-    Analyse ce diagramme UML Mermaid et fournis :
+    Analyse ce diagramme UML Mermaid (classes, structs ET enumerations) et fournis :
     1. Une description courte de l'architecture générale
     2. Les design patterns détectés
     3. Les points forts
@@ -346,6 +539,22 @@ def explain():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+@app.route("/analyze-deps", methods=["POST"])
+def analyze_deps():
+    data = request.get_json()
+    if not data or "code" not in data:
+        return jsonify({"error": "Champ 'code' manquant"}), 400
+
+    filename = data.get("filename", "file.cpp")
+    source_text = data["code"]
+    includes = extract_includes(source_text, filename)
+
+    if not includes:
+        return jsonify({"error": "Aucun #include local détecté"}), 404
+
+    dep_graph = {os.path.basename(filename): includes}
+    return jsonify({"mermaid": to_dependency_mermaid(dep_graph)})
+
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
