@@ -23,28 +23,52 @@ def parse_class(source, node, namespace=None):
                 if base.type == "type_identifier":
                     result["parents"].append(get_text(source, base))
         elif child.type == "field_declaration_list":
+            current_access = "private"  # défaut C++
             for member in child.children:
-                if member.type == "field_declaration":
+                if member.type == "access_specifier":
+                    current_access = get_text(source, member).replace(":", "").strip()
+                elif member.type == "field_declaration":
                     has_func = any(c.type == "function_declarator" for c in member.children)
-                    type_node = next((c for c in member.children if c.type in ("primitive_type", "type_identifier", "qualified_identifier")), None)
+                    # Gère int, bool, String (type simple) ET RFIDManager* (pointeur)
+                    type_node = next((c for c in member.children if c.type in (
+                        "primitive_type", "type_identifier", "qualified_identifier"
+                    )), None)
+
+                    # Si pas trouvé, cherche dans pointer_declarator : RFIDManager *_rfid
+                    if not type_node:
+                        for c in member.children:
+                            if c.type == "pointer_declarator":
+                                type_node = next((x for x in member.children if x.type in (
+                                    "primitive_type", "type_identifier", "qualified_identifier"
+                                )), None)
+                                break
+
                     name_node = next((c for c in member.children if c.type == "field_identifier"), None)
+                    if not name_node:
+                        for c in member.children:
+                            if c.type == "function_declarator":
+                                name_node = next((x for x in c.children if x.type == "field_identifier"), None)
+                            # Nouveau : pointeur → field_identifier est à l'intérieur
+                            elif c.type == "pointer_declarator":
+                                name_node = next((x for x in c.children if x.type == "field_identifier"), None)
                     if not name_node:
                         for c in member.children:
                             if c.type == "function_declarator":
                                 name_node = next((x for x in c.children if x.type == "field_identifier"), None)
                     type_str = get_text(source, type_node) if type_node else "?"
                     name_str = get_text(source, name_node) if name_node else "?"
+                    visibility = "+" if current_access == "public" else ("-" if current_access == "private" else "#")
                     if has_func:
-                        result["methods"].append({"name": name_str, "return_type": type_str})
+                        result["methods"].append({"name": name_str, "return_type": type_str, "visibility": visibility})
                     else:
-                        result["attributes"].append({"name": name_str, "type": type_str})
+                        result["attributes"].append({"name": name_str, "type": type_str, "visibility": visibility})
 
     return result
 
 def to_mermaid(classes):
     lines = ["classDiagram"]
     class_names = {c["name"] for c in classes}
-    full_names = {}  # name -> qualified name
+    full_names = {}
     relations = []
 
     for c in classes:
@@ -56,23 +80,25 @@ def to_mermaid(classes):
         display = f'{c["namespace"]}::{c["name"]}' if c["namespace"] else c["name"]
         lines.append(f'    class {full} ["{display}"] {{')
         for attr in c["attributes"]:
-            lines.append(f'        +{attr["type"]} {attr["name"]}')
+            v = attr.get("visibility", "+")
+            lines.append(f'        {v}{attr["type"]} {attr["name"]}')
         for method in c["methods"]:
-            lines.append(f'        +{method["name"]}() {method["return_type"]}')
+            v = method.get("visibility", "+")
+            lines.append(f'        {v}{method["name"]}() {method["return_type"]}')
         lines.append("    }")
 
     for c in classes:
         full = full_names[c["name"]]
         for attr in c["attributes"]:
-            # gère Hardware::Moteur → extrait "Moteur"
             attr_type = attr["type"].split("::")[-1]
             if attr_type in class_names:
-                lines.append(f'    {full} --> {full_names[attr_type]}')
+                relations.append(f'    {full} --> {full_names[attr_type]}')
         for parent in c["parents"]:
             parent_base = parent.split("::")[-1]
             if parent_base in full_names:
-                lines.append(f'    {full} --|> {full_names[parent_base]}')
+                relations.append(f'    {full} --|> {full_names[parent_base]}')
 
+    lines.extend(relations)
     return "\n".join(lines)
 
 def extract_classes(source, tree):
@@ -159,7 +185,9 @@ def analyze():
     tree = parser.parse(source)
     
     classes = extract_classes(source, tree)
-    
+    if not classes:
+        return jsonify({"error": "Aucune classe trouvée dans ce fichier"}), 404
+
     return jsonify({"mermaid": to_mermaid(classes), "classes": classes})
 
 @app.route("/analyze-zip", methods=["POST"])
