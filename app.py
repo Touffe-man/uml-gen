@@ -23,18 +23,16 @@ def parse_class(source, node, namespace=None):
                 if base.type == "type_identifier":
                     result["parents"].append(get_text(source, base))
         elif child.type == "field_declaration_list":
-            current_access = "private"  # défaut C++
+            current_access = "private"
             for member in child.children:
                 if member.type == "access_specifier":
                     current_access = get_text(source, member).replace(":", "").strip()
                 elif member.type == "field_declaration":
                     has_func = any(c.type == "function_declarator" for c in member.children)
-                    # Gère int, bool, String (type simple) ET RFIDManager* (pointeur)
                     type_node = next((c for c in member.children if c.type in (
                         "primitive_type", "type_identifier", "qualified_identifier"
                     )), None)
 
-                    # Si pas trouvé, cherche dans pointer_declarator : RFIDManager *_rfid
                     if not type_node:
                         for c in member.children:
                             if c.type == "pointer_declarator":
@@ -48,7 +46,6 @@ def parse_class(source, node, namespace=None):
                         for c in member.children:
                             if c.type == "function_declarator":
                                 name_node = next((x for x in c.children if x.type == "field_identifier"), None)
-                            # Nouveau : pointeur → field_identifier est à l'intérieur
                             elif c.type == "pointer_declarator":
                                 name_node = next((x for x in c.children if x.type == "field_identifier"), None)
                     if not name_node:
@@ -129,7 +126,6 @@ def parse_statechar(source, tree):
 
     def find_switch(node):
         if node.type == "switch_statement":
-            # extraire la variable switchée (ex: "etat")
             for child in node.children:
                 if child.type == "compound_statement":
                     for case_node in child.children:
@@ -144,7 +140,6 @@ def parse_statechar(source, tree):
             if child.type == "identifier" and current_state is None:
                 current_state = get_text(source, child)
                 states.add(current_state)
-            # cherche les assignments etat = NEXT_STATE
             find_transitions(child, current_state)
 
     def find_transitions(node, current_state):
@@ -152,14 +147,13 @@ def parse_statechar(source, tree):
             children = list(node.children)
             if len(children) >= 3 and children[1].type == "=":
                 target = get_text(source, children[2])
-                if target in states or True:  # on collecte tout, on filtrera après
+                if target in states or True:
                     transitions.append((current_state, target))
         for child in node.children:
             find_transitions(child, current_state)
 
     find_switch(tree.root_node)
 
-    # filtrer les transitions dont la cible est un état connu
     real_transitions = [(s, t) for s, t in transitions if t in states]
     return states, real_transitions
 

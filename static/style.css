@@ -1,0 +1,351 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --bg-app: #0f1117;
+    --bg-panel: #12141f;
+    --bg-bar: #1a1d27;
+    --bg-hover: #1e2130;
+    --border: #2a2d3e;
+    --accent: #4ade80;
+    --accent-dim: #166534;
+    --blue: #60a5fa;
+    --amber: #fbbf24;
+    --muted: #6b7280;
+    --text: #e2e8f0;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+body {
+    font-family: var(--font-mono);
+    background: var(--bg-app);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ── TITLEBAR ── */
+#titlebar {
+    height: 38px;
+    background: var(--bg-bar);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 8px;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.traffic {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.t-red {
+    background: #ff5f56;
+}
+
+.t-yellow {
+    background: #ffbd2e;
+}
+
+.t-green {
+    background: #27c93f;
+}
+
+#titlebar span {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+}
+
+/* ── MAIN LAYOUT ── */
+#main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ── LEFT PANEL ── */
+#left {
+    width: 45%;
+    min-width: 320px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+}
+
+#tab-bar {
+    height: 34px;
+    background: var(--bg-bar);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-end;
+    padding: 0 8px;
+    flex-shrink: 0;
+}
+
+.tab {
+    padding: 0 14px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+    color: var(--muted);
+    border-radius: 4px 4px 0 0;
+    border: 1px solid transparent;
+    border-bottom: none;
+    cursor: pointer;
+    gap: 6px;
+}
+
+.tab.active {
+    background: var(--bg-panel);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+.tab .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+#upload-bar {
+    padding: 8px 12px;
+    background: var(--bg-bar);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+#upload-bar label {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+#file-input {
+    display: none;
+}
+
+#btn-upload {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 3px 10px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--accent);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+#btn-upload:hover {
+    background: #1e3a2f;
+    border-color: var(--accent);
+}
+
+#file-name {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* ── CODEMIRROR ── */
+#editor-wrap {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.CodeMirror {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100% !important;
+    font-family: var(--font-mono) !important;
+    font-size: 12px !important;
+    line-height: 20px !important;
+    background: var(--bg-panel) !important;
+    color: var(--text) !important;
+}
+
+.CodeMirror-scroll {
+    height: 100% !important;
+}
+
+.CodeMirror-gutters {
+    background: var(--bg-panel) !important;
+    border-right: 1px solid var(--border) !important;
+}
+
+.CodeMirror-linenumber {
+    color: var(--muted) !important;
+    padding: 0 8px !important;
+}
+
+.CodeMirror-cursor {
+    border-left: 2px solid var(--accent) !important;
+}
+
+.CodeMirror-selected {
+    background: #2a3d6b !important;
+}
+
+/* ── BOTTOM BAR ── */
+#bottom-bar {
+    height: 46px;
+    background: var(--bg-bar);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.btn-mode {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    color: var(--muted);
+    background: var(--bg-hover);
+    transition: background 0.15s;
+}
+
+.btn-mode.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+}
+
+.btn-action {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 6px 16px;
+    border-radius: 4px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+#btn-gen {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+#btn-gen:hover {
+    background: #14532d;
+}
+
+#btn-svg {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--muted);
+    display: none;
+}
+
+#btn-svg:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+}
+
+#status {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+}
+
+#status.ok {
+    color: var(--accent);
+}
+
+#status.err {
+    color: #f87171;
+}
+
+/* ── RIGHT PANEL ── */
+#right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#diagram-header {
+    height: 34px;
+    background: var(--bg-bar);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    font-size: 11px;
+    color: var(--muted);
+    flex-shrink: 0;
+}
+
+#diagram-header .pill {
+    margin-left: auto;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    color: var(--muted);
+}
+
+#diagram-wrap {
+    flex: 1;
+    overflow: auto;
+    padding: 24px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background: var(--bg-app);
+}
+
+#diagram-wrap svg {
+    max-width: 100%;
+}
+
+#empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 12px;
+    color: var(--muted);
+    pointer-events: none;
+}
+
+#empty-state .icon {
+    font-size: 40px;
+    opacity: 0.25;
+}
+
+#empty-state p {
+    font-size: 12px;
+}
+
+/* Mermaid dark override */
+#diagram-wrap .mermaid,
+#diagram-wrap svg {
+    background: transparent !important;
+}

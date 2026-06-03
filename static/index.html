@@ -5,243 +5,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UML Gen</title>
+
+    <!-- Mermaid -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        :root {
-            --bg-app: #0f1117;
-            --bg-panel: #12141f;
-            --bg-bar: #1a1d27;
-            --bg-hover: #1e2130;
-            --border: #2a2d3e;
-            --accent: #4ade80;
-            --accent-dim: #166534;
-            --blue: #60a5fa;
-            --muted: #6b7280;
-            --text: #e2e8f0;
-            --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-        }
+    <!-- CodeMirror -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
 
-        body {
-            font-family: var(--font-mono);
-            background: var(--bg-app);
-            color: var(--text);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* TITLEBAR */
-        #titlebar {
-            height: 38px;
-            background: var(--bg-bar);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            padding: 0 16px;
-            gap: 8px;
-            flex-shrink: 0;
-            user-select: none;
-        }
-        .traffic { width: 12px; height: 12px; border-radius: 50%; }
-        .t-red    { background: #ff5f56; }
-        .t-yellow { background: #ffbd2e; }
-        .t-green  { background: #27c93f; }
-        #titlebar span { margin-left: auto; font-size: 11px; color: var(--muted); letter-spacing: 0.05em; }
-
-        /* MAIN */
-        #main { display: flex; flex: 1; overflow: hidden; }
-
-        /* LEFT */
-        #left {
-            width: 45%;
-            min-width: 320px;
-            display: flex;
-            flex-direction: column;
-            border-right: 1px solid var(--border);
-        }
-
-        #tab-bar {
-            height: 34px;
-            background: var(--bg-bar);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: flex-end;
-            padding: 0 8px;
-            flex-shrink: 0;
-        }
-        .tab {
-            padding: 0 14px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            font-size: 11px;
-            color: var(--muted);
-            border-radius: 4px 4px 0 0;
-            border: 1px solid transparent;
-            border-bottom: none;
-            gap: 6px;
-        }
-        .tab.active { background: var(--bg-panel); border-color: var(--border); color: var(--text); }
-        .tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-
-        #upload-bar {
-            padding: 8px 12px;
-            background: var(--bg-bar);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-        #upload-bar label { font-size: 11px; color: var(--muted); }
-        #file-input { display: none; }
-        #btn-upload {
-            font-family: var(--font-mono);
-            font-size: 11px;
-            padding: 3px 10px;
-            background: var(--bg-hover);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: var(--accent);
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        #btn-upload:hover { background: #1e3a2f; border-color: var(--accent); }
-        #file-name { font-size: 11px; color: var(--muted); }
-
-        /* EDITOR */
-        #editor-wrap { flex: 1; position: relative; overflow: hidden; }
-
-        #line-nums {
-            position: absolute;
-            left: 0; top: 0; bottom: 0;
-            width: 42px;
-            padding: 14px 8px 14px 0;
-            background: var(--bg-panel);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            overflow: hidden;
-            pointer-events: none;
-        }
-        .lnum { font-size: 12px; line-height: 20px; color: var(--border); }
-
-        #code-area {
-            position: absolute;
-            left: 42px; top: 0; right: 0; bottom: 0;
-            background: var(--bg-panel);
-            border: none;
-            outline: none;
-            resize: none;
-            font-family: var(--font-mono);
-            font-size: 12px;
-            line-height: 20px;
-            color: var(--text);
-            padding: 14px;
-            white-space: pre;
-            overflow: auto;
-            caret-color: var(--accent);
-        }
-        #code-area::selection { background: #2a3d6b; }
-
-        /* BOTTOM BAR */
-        #bottom-bar {
-            height: 46px;
-            background: var(--bg-bar);
-            border-top: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            padding: 0 12px;
-            gap: 10px;
-            flex-shrink: 0;
-        }
-
-        .btn-mode {
-            font-family: var(--font-mono);
-            font-size: 11px;
-            padding: 4px 12px;
-            border-radius: 4px;
-            border: 1px solid var(--border);
-            cursor: pointer;
-            color: var(--muted);
-            background: var(--bg-hover);
-            transition: background 0.15s;
-        }
-        .btn-mode.active { background: var(--accent); border-color: var(--accent); color: #000; }
-
-        .btn-action {
-            font-family: var(--font-mono);
-            font-size: 12px;
-            padding: 6px 16px;
-            border-radius: 4px;
-            border: 1px solid;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        #btn-gen { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
-        #btn-gen:hover { background: #14532d; }
-        #btn-svg { background: transparent; border-color: var(--border); color: var(--muted); display: none; }
-        #btn-svg:hover { border-color: var(--blue); color: var(--blue); }
-
-        #status { font-size: 11px; color: var(--muted); margin-left: auto; }
-        #status.ok  { color: var(--accent); }
-        #status.err { color: #f87171; }
-
-        /* RIGHT */
-        #right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-        #diagram-header {
-            height: 34px;
-            background: var(--bg-bar);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            padding: 0 14px;
-            font-size: 11px;
-            color: var(--muted);
-            flex-shrink: 0;
-        }
-        #diagram-header .pill {
-            margin-left: auto;
-            font-size: 10px;
-            padding: 2px 8px;
-            border-radius: 10px;
-            background: var(--bg-hover);
-            border: 1px solid var(--border);
-            color: var(--muted);
-        }
-
-        #diagram-wrap {
-            flex: 1;
-            overflow: auto;
-            padding: 24px;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            background: var(--bg-app);
-        }
-        #diagram-wrap svg { max-width: 100%; }
-
-        #empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            gap: 12px;
-            color: var(--muted);
-            pointer-events: none;
-        }
-        #empty-state .icon { font-size: 40px; opacity: 0.25; }
-        #empty-state p { font-size: 12px; }
-
-        #diagram-wrap .mermaid,
-        #diagram-wrap svg { background: transparent !important; }
-    </style>
+    <!-- App styles -->
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 
 <body>
@@ -255,9 +32,12 @@
 
     <div id="main">
 
+        <!-- LEFT : éditeur -->
         <div id="left">
             <div id="tab-bar">
-                <div class="tab active"><div class="dot"></div> editor</div>
+                <div class="tab active">
+                    <div class="dot"></div> editor
+                </div>
             </div>
 
             <div id="upload-bar">
@@ -268,20 +48,19 @@
             </div>
 
             <div id="editor-wrap">
-                <div id="line-nums"></div>
-                <textarea id="code-area" spellcheck="false"
-                    placeholder="// Colle ou charge ton code C++ ici..."></textarea>
+                <textarea id="code-area" spellcheck="false"></textarea>
             </div>
 
             <div id="bottom-bar">
                 <button id="btn-class" class="btn-mode active" onclick="setMode('class')">Classes</button>
-                <button id="btn-state" class="btn-mode"        onclick="setMode('state')">Statechart</button>
+                <button id="btn-state" class="btn-mode" onclick="setMode('state')">Statechart</button>
                 <button class="btn-action" id="btn-gen" onclick="generate()">▶ Générer</button>
                 <button class="btn-action" id="btn-svg" onclick="exportSVG()">↓ SVG</button>
                 <span id="status">prêt</span>
             </div>
         </div>
 
+        <!-- RIGHT : diagramme -->
         <div id="right">
             <div id="diagram-header">
                 <span>aperçu</span>
@@ -297,146 +76,7 @@
 
     </div>
 
-    <script>
-        mermaid.initialize({
-            startOnLoad: false,
-            theme: 'dark',
-            themeVariables: {
-                background: '#0f1117',
-                primaryColor: '#1a1d27',
-                primaryTextColor: '#e2e8f0',
-                primaryBorderColor: '#4ade80',
-                lineColor: '#6b7280',
-                secondaryColor: '#12141f',
-                tertiaryColor: '#1e2130',
-            }
-        });
-
-        const textarea = document.getElementById('code-area');
-        const lineNums = document.getElementById('line-nums');
-        let currentMode = 'class';
-
-        function setMode(mode) {
-            currentMode = mode;
-            document.getElementById('btn-class').classList.toggle('active', mode === 'class');
-            document.getElementById('btn-state').classList.toggle('active', mode === 'state');
-        }
-
-        function updateLineNums() {
-            const lines = textarea.value.split('\n').length;
-            lineNums.innerHTML = Array.from({ length: lines }, (_, i) =>
-                `<div class="lnum">${i + 1}</div>`
-            ).join('');
-        }
-
-        textarea.addEventListener('input', updateLineNums);
-        textarea.addEventListener('scroll', () => { lineNums.scrollTop = textarea.scrollTop; });
-        updateLineNums();
-
-        function loadFile() {
-            const file = document.getElementById('file-input').files[0];
-            if (!file) return;
-            document.getElementById('file-name').textContent = file.name;
-
-            if (file.name.endsWith('.zip')) {
-                window._zipFile = file;
-                textarea.value = '// Projet ZIP chargé : ' + file.name + '\n// Lance la génération pour analyser tous les fichiers .cpp/.h';
-                updateLineNums();
-            } else {
-                window._zipFile = null;
-                const reader = new FileReader();
-                reader.onload = e => {
-                    textarea.value = e.target.result;
-                    updateLineNums();
-                };
-                reader.readAsText(file);
-            }
-        }
-
-        async function generate() {
-            const code = textarea.value.trim();
-            const status = document.getElementById('status');
-            const wrap = document.getElementById('diagram-wrap');
-
-            if (!code) {
-                status.textContent = 'aucun code';
-                status.className = 'err';
-                return;
-            }
-
-            status.textContent = 'analyse...';
-            status.className = '';
-            document.getElementById('btn-gen').textContent = '⏳ ...';
-
-            try {
-                let res;
-                if (window._zipFile) {
-                    const form = new FormData();
-                    form.append('file', window._zipFile);
-                    res = await fetch('/analyze-zip', { method: 'POST', body: form });
-                } else if (currentMode === 'state') {
-                    res = await fetch('/analyze-state', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ code })
-                    });
-                } else {
-                    res = await fetch('/analyze', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ code })
-                    });
-                }
-
-                const data = await res.json();
-
-                if (data.error) {
-                    status.textContent = data.error;
-                    status.className = 'err';
-                    return;
-                }
-
-                wrap.innerHTML = '<div id="mermaid-out"></div>';
-                const { svg } = await mermaid.render('mermaid-diagram-' + Date.now(), data.mermaid);
-                wrap.innerHTML = svg;
-
-                const count = (data.classes || data.states || []).length;
-                document.getElementById('class-count').textContent =
-                    currentMode === 'state'
-                        ? count + ' état' + (count > 1 ? 's' : '')
-                        : count + ' classe' + (count > 1 ? 's' : '');
-
-                status.textContent = 'ok';
-                status.className = 'ok';
-                document.getElementById('btn-svg').style.display = 'inline-block';
-
-            } catch (e) {
-                status.textContent = 'erreur: ' + e.message;
-                status.className = 'err';
-            } finally {
-                document.getElementById('btn-gen').textContent = '▶ Générer';
-            }
-        }
-
-        function exportSVG() {
-            const svg = document.querySelector('#diagram-wrap svg');
-            if (!svg) return;
-            const box = svg.getBoundingClientRect();
-            svg.setAttribute('width', box.width);
-            svg.setAttribute('height', box.height);
-            const blob = new Blob([new XMLSerializer().serializeToString(svg)],
-                { type: 'image/svg+xml;charset=utf-8' });
-            const a = document.createElement('a');
-            a.download = 'diagramme.svg';
-            a.href = URL.createObjectURL(blob);
-            a.click();
-            URL.revokeObjectURL(a.href);
-        }
-
-        document.addEventListener('keydown', e => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate();
-        });
-    </script>
+    <script src="/static/app.js"></script>
 </body>
 
 </html>
