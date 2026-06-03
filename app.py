@@ -5,6 +5,7 @@ import zipfile
 import io
 import requests as http_requests
 import re
+import os
 
 app = Flask(__name__)
 
@@ -249,7 +250,13 @@ def analyze_github():
 
     # Récupérer la liste des fichiers via l'API GitHub (récursif)
     api_url = f"https://api.github.com/repos/{user}/{repo}/git/trees/HEAD?recursive=1"
-    r = http_requests.get(api_url, timeout=10)
+    GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
+    headers = {}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+
+    r = http_requests.get(api_url, headers=headers, timeout=10)
     if r.status_code != 200:
         return jsonify({"error": f"Repo introuvable ou privé ({r.status_code})"}), 404
 
@@ -265,7 +272,7 @@ def analyze_github():
     all_classes = []
     for f in cpp_files:
         raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/HEAD/{f['path']}"
-        resp = http_requests.get(raw_url, timeout=10)
+        resp = http_requests.get(raw_url, headers=headers, timeout=10)
         if resp.status_code != 200:
             continue
         source = resp.content
