@@ -3,6 +3,8 @@ import tree_sitter_cpp as tscpp
 from tree_sitter import Language, Parser
 import zipfile
 import io
+import requests as http_requests
+import re
 
 app = Flask(__name__)
 
@@ -228,6 +230,55 @@ def analyze_state():
         "mermaid": to_statemermaid(states, transitions),
         "states": list(states),
         "transitions": transitions
+    })
+
+@app.route("/analyze-github", methods=["POST"])
+def analyze_github():
+    data = request.get_json()
+    if not data or "url" not in data:
+        return jsonify({"error": "Champ 'url' manquant"}), 400
+
+    url = data["url"].strip()
+
+    # Extraire user/repo depuis l'URL
+    match = re.match(r"https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", url)
+    if not match:
+        return jsonify({"error": "URL GitHub invalide (ex: https://github.com/user/repo)"}), 400
+
+    user, repo = match.group(1), match.group(2)
+
+    # Récupérer la liste des fichiers via l'API GitHub (récursif)
+    api_url = f"https://api.github.com/repos/{user}/{repo}/git/trees/HEAD?recursive=1"
+    r = http_requests.get(api_url, timeout=10)
+    if r.status_code != 200:
+        return jsonify({"error": f"Repo introuvable ou privé ({r.status_code})"}), 404
+
+    tree = r.json().get("tree", [])
+    cpp_files = [f for f in tree if f["type"] == "blob" and f["path"].endswith((".cpp", ".h"))]
+
+    if not cpp_files:
+        return jsonify({"error": "Aucun fichier .cpp/.h trouvé dans ce repo"}), 404
+
+    # Limiter à 30 fichiers pour le MVP
+    cpp_files = cpp_files[:30]
+
+    all_classes = []
+    for f in cpp_files:
+        raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/HEAD/{f['path']}"
+        resp = http_requests.get(raw_url, timeout=10)
+        if resp.status_code != 200:
+            continue
+        source = resp.content
+        parsed_tree = parser.parse(source)
+        all_classes.extend(extract_classes(source, parsed_tree))
+
+    if not all_classes:
+        return jsonify({"error": "Aucune classe trouvée dans ce repo"}), 404
+
+    return jsonify({
+        "mermaid": to_mermaid(all_classes),
+        "classes": all_classes,
+        "files_analyzed": len(cpp_files)
     })
 
 @app.route("/")

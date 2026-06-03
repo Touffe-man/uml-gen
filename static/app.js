@@ -55,6 +55,59 @@ function loadFile() {
     }
 }
 
+// ── GITHUB ───────────────────────────────────────────────
+async function analyzeGithub() {
+    const url = document.getElementById('github-url').value.trim();
+    const status = document.getElementById('status');
+    const wrap = document.getElementById('diagram-wrap');
+    const btn = document.getElementById('btn-github');
+
+    if (!url) {
+        status.textContent = 'URL manquante';
+        status.className = 'err';
+        return;
+    }
+
+    status.textContent = 'téléchargement...';
+    status.className = '';
+    btn.textContent = '⏳ ...';
+
+    try {
+        const res = await fetch('/analyze-github', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+            status.textContent = data.error;
+            status.className = 'err';
+            return;
+        }
+
+        wrap.innerHTML = '';
+        const { svg } = await mermaid.render('mermaid-diagram-' + Date.now(), data.mermaid);
+        wrap.innerHTML = svg;
+
+        const count = (data.classes || []).length;
+        document.getElementById('class-count').textContent =
+            count + ' classe' + (count > 1 ? 's' : '') +
+            ' · ' + data.files_analyzed + ' fichier' + (data.files_analyzed > 1 ? 's' : '');
+
+        status.textContent = 'ok';
+        status.className = 'ok';
+        document.getElementById('btn-svg').style.display = 'inline-block';
+
+    } catch (e) {
+        status.textContent = 'erreur : ' + e.message;
+        status.className = 'err';
+    } finally {
+        btn.textContent = '↓ Analyser';
+    }
+}
+
 // ── GÉNÉRER ──────────────────────────────────────────────
 async function generate() {
     const code = editor.getValue().trim();
@@ -142,4 +195,6 @@ function exportSVG() {
 // ── RACCOURCI CLAVIER Ctrl+Entrée ────────────────────────
 document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate();
+
+
 });
