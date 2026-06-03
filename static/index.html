@@ -19,6 +19,9 @@
 
     <!-- App styles -->
     <link rel="stylesheet" href="/static/style.css">
+
+    <!-- Marked.js pour le rendu Markdown -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 </head>
 
 <body>
@@ -62,6 +65,7 @@
                 <button id="btn-state" class="btn-mode" onclick="setMode('state')">Statechart</button>
                 <button class="btn-action" id="btn-gen" onclick="generate()">▶ Générer</button>
                 <button class="btn-action" id="btn-svg" onclick="exportSVG()">↓ SVG</button>
+                <button class="btn-action" id="btn-explain" onclick="explain()">✦ Expliquer</button>
                 <span id="status">prêt</span>
             </div>
         </div>
@@ -77,6 +81,13 @@
                     <div class="icon">⬡</div>
                     <p>lance la génération pour voir le diagramme</p>
                 </div>
+            </div>
+            <div id="explain-panel" style="display:none;">
+                <div id="explain-header">
+                    ✦ Analyse IA
+                    <span id="btn-collapse" onclick="toggleExplain()" style="margin-left:auto; cursor:pointer; color:var(--muted); font-size:14px;">↓</span>
+                </div>
+                <div id="explain-content"></div>
             </div>
         </div>
 

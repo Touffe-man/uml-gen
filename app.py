@@ -6,6 +6,8 @@ import io
 import requests as http_requests
 import re
 import os
+import httpx
+MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
 
 app = Flask(__name__)
 
@@ -288,6 +290,46 @@ def analyze_github():
         "files_analyzed": len(cpp_files)
     })
 
+@app.route("/explain", methods=["POST"])
+def explain():
+    data = request.get_json()
+    if not data or "mermaid" not in data:
+        return jsonify({"error": "Champ 'mermaid' manquant"}), 400
+
+    if not MISTRAL_API_KEY:
+        return jsonify({"error": "Clé MISTRAL_API_KEY non configurée"}), 500
+
+    prompt = f"""Tu es un expert en architecture logicielle C++ et systèmes embarqués.
+    Analyse ce diagramme UML Mermaid et fournis :
+    1. Une description courte de l'architecture générale
+    2. Les design patterns détectés
+    3. Les points forts
+    4. Les points faibles ou risques
+    5. Une suggestion d'amélioration
+
+    Diagramme :
+    {data['mermaid']}
+
+    Réponds en français, de façon concise (max 300 mots)."""
+
+    try:
+        response = httpx.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {MISTRAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "mistral-small-latest",
+                "messages": [{"role": "user", "content": prompt}]
+            },
+            timeout=30
+        )
+        result = response.json()
+        return jsonify({"explanation": result["choices"][0]["message"]["content"]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")

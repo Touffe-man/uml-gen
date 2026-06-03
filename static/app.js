@@ -99,6 +99,8 @@ async function analyzeGithub() {
         status.textContent = 'ok';
         status.className = 'ok';
         document.getElementById('btn-svg').style.display = 'inline-block';
+        document.getElementById('btn-explain').style.display = 'inline-block';
+        window._lastMermaid = data.mermaid;
 
     } catch (e) {
         status.textContent = 'erreur : ' + e.message;
@@ -167,6 +169,8 @@ async function generate() {
         status.textContent = 'ok';
         status.className = 'ok';
         document.getElementById('btn-svg').style.display = 'inline-block';
+        document.getElementById('btn-explain').style.display = 'inline-block';
+        window._lastMermaid = data.mermaid;
 
     } catch (e) {
         status.textContent = 'erreur : ' + e.message;
@@ -190,6 +194,45 @@ function exportSVG() {
     a.href = URL.createObjectURL(blob);
     a.click();
     URL.revokeObjectURL(a.href);
+}
+
+// ── EXPLIQUER ────────────────────────────────────────────
+async function explain() {
+    const btn = document.getElementById('btn-explain');
+    const panel = document.getElementById('explain-panel');
+    const content = document.getElementById('explain-content');
+
+    if (!window._lastMermaid) return;
+
+    btn.textContent = '⏳ ...';
+    panel.style.display = 'block';
+    content.innerHTML = '<span class="explain-loading">analyse en cours...</span>';
+
+    try {
+        const res = await fetch('/explain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mermaid: window._lastMermaid })
+        });
+        const data = await res.json();
+        if (data.error) {
+            content.innerHTML = `<span class="explain-error">${data.error}</span>`;
+        } else {
+            content.innerHTML = marked.parse(data.explanation);
+        }
+    } catch (e) {
+        content.innerHTML = `<span class="explain-error">Erreur : ${e.message}</span>`;
+    } finally {
+        btn.textContent = '✦ Expliquer';
+    }
+}
+
+function toggleExplain() {
+    const content = document.getElementById('explain-content');
+    const btn = document.getElementById('btn-collapse');
+    const visible = content.style.display !== 'none';
+    content.style.display = visible ? 'none' : 'block';
+    btn.textContent = visible ? '↑' : '↓';
 }
 
 // ── RACCOURCI CLAVIER Ctrl+Entrée ────────────────────────

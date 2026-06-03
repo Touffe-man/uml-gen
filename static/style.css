@@ -348,39 +348,168 @@ body {
 #diagram-wrap .mermaid,
 #diagram-wrap svg {
     background: transparent !important;
+}
 
 #github-bar {
-  padding: 8px 12px;
-  background: var(--bg-bar);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+    padding: 8px 12px;
+    background: var(--bg-bar);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
 }
-#github-bar label { font-size: 11px; color: var(--muted); }
+
+#github-bar label {
+    font-size: 11px;
+    color: var(--muted);
+}
+
 #github-url {
-  flex: 1;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 3px 8px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
-  outline: none;
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 3px 8px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    outline: none;
 }
-#github-url:focus { border-color: var(--accent); }
+
+#github-url:focus {
+    border-color: var(--accent);
+}
+
 #btn-github {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 3px 10px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--blue);
-  cursor: pointer;
-  transition: background 0.15s;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 3px 10px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--blue);
+    cursor: pointer;
+    transition: background 0.15s;
 }
-#btn-github:hover { background: #1e2a4a; border-color: var(--blue); }
+
+#btn-github:hover {
+    background: #1e2a4a;
+    border-color: var(--blue);
+}
+
+#btn-explain {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--muted);
+    display: none;
+}
+
+#btn-explain:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+#explain-header {
+    padding: 8px 14px;
+    font-size: 11px;
+    color: var(--amber);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-bar);
+    display: flex;
+    align-items: center;
+}
+
+#explain-content {
+    padding: 14px 18px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text);
+}
+
+#explain-content h1,
+#explain-content h2,
+#explain-content h3,
+#explain-content h4 {
+    font-size: 11px;
+    color: var(--amber);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin: 14px 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+}
+
+#explain-content h1:first-child,
+#explain-content h2:first-child,
+#explain-content h3:first-child,
+#explain-content h4:first-child {
+    margin-top: 0;
+}
+
+#explain-content p {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+
+#explain-content ul, #explain-content ol {
+    padding-left: 16px;
+    margin-bottom: 6px;
+}
+
+#explain-content li {
+    font-size: 11px;
+    color: var(--text);
+    margin-bottom: 3px;
+    list-style: none;
+    padding-left: 4px;
+}
+
+#explain-content li::before {
+    content: '▸ ';
+    color: var(--muted);
+}
+
+#explain-content strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
+#explain-content code {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--accent);
+}
+
+#explain-content pre {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    margin: 6px 0;
+}
+
+#explain-content pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 11px;
+    color: var(--text);
+}
+
+.explain-loading { color: var(--muted); font-style: italic; font-size: 11px; }
+.explain-error { color: #f87171; font-size: 11px; }
+
+#explain-panel {
+    border-top: 1px solid var(--border);
+    background: var(--bg-panel);
+    max-height: 240px;
+    overflow-y: auto;
+    flex-shrink: 0;
 }
