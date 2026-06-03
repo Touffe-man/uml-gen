@@ -101,6 +101,7 @@ async function analyzeGithub() {
         document.getElementById('btn-svg').style.display = 'inline-block';
         document.getElementById('btn-explain').style.display = 'inline-block';
         window._lastMermaid = data.mermaid;
+        window._lastReadme = data.readme || "";
 
     } catch (e) {
         status.textContent = 'erreur : ' + e.message;
@@ -171,7 +172,8 @@ async function generate() {
         document.getElementById('btn-svg').style.display = 'inline-block';
         document.getElementById('btn-explain').style.display = 'inline-block';
         window._lastMermaid = data.mermaid;
-
+        window._lastReadme = data.readme || "";
+        
     } catch (e) {
         status.textContent = 'erreur : ' + e.message;
         status.className = 'err';
@@ -212,7 +214,7 @@ async function explain() {
         const res = await fetch('/explain', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mermaid: window._lastMermaid })
+            body: JSON.stringify({ mermaid: window._lastMermaid, readme: window._lastReadme || "" })
         });
         const data = await res.json();
         if (data.error) {

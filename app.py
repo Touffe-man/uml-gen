@@ -284,10 +284,22 @@ def analyze_github():
     if not all_classes:
         return jsonify({"error": "Aucune classe trouvée dans ce repo"}), 404
 
+    # Chercher le README
+    readme_content = ""
+    readme_file = next((f for f in tree if f["type"] == "blob" and f["path"].lower() in ("readme.md", "readme.txt", "readme")), None)
+    if readme_file:
+        r = http_requests.get(
+            f"https://raw.githubusercontent.com/{user}/{repo}/HEAD/{readme_file['path']}",
+            headers=headers, timeout=10
+        )
+        if r.status_code == 200:
+            readme_content = r.text[:3000]  # limite pour pas exploser le prompt
+
     return jsonify({
         "mermaid": to_mermaid(all_classes),
         "classes": all_classes,
-        "files_analyzed": len(cpp_files)
+        "files_analyzed": len(cpp_files),
+        "readme": readme_content
     })
 
 @app.route("/explain", methods=["POST"])
@@ -299,7 +311,11 @@ def explain():
     if not MISTRAL_API_KEY:
         return jsonify({"error": "Clé MISTRAL_API_KEY non configurée"}), 500
 
+    readme_text = data.get("readme", "")
+    readme_section = f"\nContexte du projet (README) :\n{readme_text}\n" if readme_text else ""
+
     prompt = f"""Tu es un expert en architecture logicielle C++ et systèmes embarqués.
+    {readme_section}
     Analyse ce diagramme UML Mermaid et fournis :
     1. Une description courte de l'architecture générale
     2. Les design patterns détectés
