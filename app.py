@@ -188,7 +188,13 @@ def parse_enum(source, node, namespace=None):
                         result["values"].append(get_text(source, val_node))
     return result
 
-def to_mermaid(classes, enums=None):
+def to_mermaid(classes, enums=None, max_classes=25):
+    classes = [c for c in classes if c["name"].strip()]
+    enums = [e for e in (enums or []) if e["name"].strip()]
+
+    if len(classes) > max_classes:
+        classes = classes[:max_classes]
+
     lines = ["classDiagram"]
     class_names = {c["name"] for c in classes}
     full_names = {}
@@ -263,10 +269,14 @@ def extract_classes(source, tree):
                         walk(sub, namespace=ns_name)
 
         elif node.type == "class_specifier":
-            classes.append(parse_class(source, node, namespace=namespace, is_struct=False))
+            c = parse_class(source, node, namespace=namespace, is_struct=False)
+            if c["name"] and '<' not in c["name"] and not c["name"].startswith('_'):
+                classes.append(c)
 
         elif node.type == "struct_specifier":
-            classes.append(parse_class(source, node, namespace=namespace, is_struct=True))
+            c = parse_class(source, node, namespace=namespace, is_struct=True)
+            if c["name"] and '<' not in c["name"] and not c["name"].startswith('_'):
+                classes.append(c)
 
         elif node.type == "enum_specifier":
             # Seulement enum class/struct (pas les enums C basiques sans nom)
@@ -339,24 +349,27 @@ def extract_includes(source_text, filename):
     return includes
 
 def to_dependency_mermaid(dep_graph):
-    """Génère un diagramme de dépendances Mermaid."""
     lines = ["graph TD"]
-    # Noeuds : nom de fichier sans extension comme identifiant
+    
     def node_id(name):
         return re.sub(r'[^a-zA-Z0-9_]', '_', name.replace('.', '_'))
 
-    added = set()
+    cpp_files = [n for n in set(list(dep_graph.keys()) + [t for v in dep_graph.values() for t in v]) if n.endswith('.cpp')]
+    h_files = [n for n in set(list(dep_graph.keys()) + [t for v in dep_graph.values() for t in v]) if n.endswith('.h')]
+
+    lines.append("    subgraph Sources")
+    for f in cpp_files:
+        lines.append(f'        {node_id(f)}["{f}"]')
+    lines.append("    end")
+
+    lines.append("    subgraph Headers")
+    for f in h_files:
+        lines.append(f'        {node_id(f)}["{f}"]')
+    lines.append("    end")
+
     for src, targets in dep_graph.items():
-        sid = node_id(src)
-        if sid not in added:
-            lines.append(f'    {sid}["{src}"]')
-            added.add(sid)
         for tgt in targets:
-            tid = node_id(tgt)
-            if tid not in added:
-                lines.append(f'    {tid}["{tgt}"]')
-                added.add(tid)
-            lines.append(f'    {sid} --> {tid}')
+            lines.append(f'    {node_id(src)} --> {node_id(tgt)}')
 
     return "\n".join(lines)
 
@@ -425,6 +438,43 @@ def analyze_state():
         "transitions": transitions
     })
 
+@app.route("/analyze-deps-zip", methods=["POST"])
+def analyze_deps_zip():
+    if "file" not in request.files:
+        return jsonify({"error": "Aucun fichier reçu"}), 400
+
+    f = request.files["file"]
+    if not f.filename.endswith(".zip"):
+        return jsonify({"error": "Fichier .zip attendu"}), 400
+
+    dep_graph = {}
+    all_sources = {}
+
+    with zipfile.ZipFile(io.BytesIO(f.read())) as z:
+        for name in z.namelist():
+            if name.endswith((".cpp", ".h")) and not name.startswith("__"):
+                with z.open(name) as code_file:
+                    source_text = code_file.read().decode("utf-8", errors="ignore")
+                    all_sources[os.path.basename(name)] = source_text
+
+    # Maintenant on ne garde que les includes qui sont dans le ZIP
+    project_files = set(all_sources.keys())
+    for basename, source_text in all_sources.items():
+        includes = [
+            inc for inc in extract_includes(source_text, basename)
+            if inc in project_files
+        ]
+        if includes:
+            dep_graph[basename] = includes
+
+    if not dep_graph:
+        return jsonify({"error": "Aucune dépendance interne trouvée"}), 404
+
+    return jsonify({
+    "mermaid": to_dependency_mermaid(dep_graph),
+    "dep_graph": dep_graph
+})
+
 @app.route("/analyze-github", methods=["POST"])
 def analyze_github():
     data = request.get_json()
@@ -453,13 +503,14 @@ def analyze_github():
         return jsonify({"error": f"Repo introuvable ou privé ({r.status_code})"}), 404
 
     tree = r.json().get("tree", [])
+    MAX_FILES = 10
     cpp_files = [f for f in tree if f["type"] == "blob" and f["path"].endswith((".cpp", ".h"))]
 
     if not cpp_files:
         return jsonify({"error": "Aucun fichier .cpp/.h trouvé dans ce repo"}), 404
 
-    # Limiter à 30 fichiers pour le MVP
-    cpp_files = cpp_files[:30]
+    truncated = len(cpp_files) > MAX_FILES
+    cpp_files = cpp_files[:MAX_FILES]
 
     all_classes = []
     all_enums = []
@@ -488,12 +539,15 @@ def analyze_github():
         if r.status_code == 200:
             readme_content = r.text[:3000]  # limite pour pas exploser le prompt
 
+    truncated = len([f for f in tree if f["type"] == "blob" and f["path"].endswith((".cpp", ".h"))]) > MAX_FILES
+
     return jsonify({
-        "mermaid": to_mermaid(all_classes, all_enums),
-        "classes": all_classes,
-        "files_analyzed": len(cpp_files),
-        "readme": readme_content
-    })
+    "mermaid": to_mermaid(all_classes, all_enums),
+    "classes": all_classes,
+    "files_analyzed": len(cpp_files),
+    "readme": readme_content,
+    "truncated": truncated
+})
 
 @app.route("/explain", methods=["POST"])
 def explain():
@@ -553,7 +607,10 @@ def analyze_deps():
         return jsonify({"error": "Aucun #include local détecté"}), 404
 
     dep_graph = {os.path.basename(filename): includes}
-    return jsonify({"mermaid": to_dependency_mermaid(dep_graph)})
+    return jsonify({
+    "mermaid": to_dependency_mermaid(dep_graph),
+    "dep_graph": dep_graph
+})
 
 @app.route("/")
 def index():

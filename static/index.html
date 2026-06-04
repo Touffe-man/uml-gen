@@ -22,6 +22,16 @@
 
     <!-- Marked.js pour le rendu Markdown -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+
+    <!-- html-to-image pour exporter en PNG -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+
+    <!-- D3.js pour render de gros graphes -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+
+    <!-- Dagre pour le layout automatique -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+
 </head>
 
 <body>
@@ -66,6 +76,7 @@
                 <button id="btn-deps" class="btn-mode" onclick="setMode('deps')">Dépendances</button>
                 <button class="btn-action" id="btn-gen" onclick="generate()">▶ Générer</button>
                 <button class="btn-action" id="btn-svg" onclick="exportSVG()">↓ SVG</button>
+                <button class="btn-action" id="btn-png" onclick="exportPNG()" style="display:none;">↓ PNG</button>
                 <button class="btn-action" id="btn-explain" onclick="explain()">✦ Expliquer</button>
                 <span id="status">prêt</span>
             </div>
